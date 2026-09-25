@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
 
@@ -14,6 +20,17 @@ interface Aes67Stream {
   lastSeen: number;
 }
 
+interface NetworkInterface {
+  name: string;
+  ip: string;
+}
+
+interface DiscoveryStatus {
+  running: boolean;
+  interfaceIp: string;
+  message: string;
+}
+
 const destinations = [
   "Monitor Control Room",
   "Recorder A",
@@ -22,7 +39,7 @@ const destinations = [
 ];
 
 const exampleSdp = `v=0
-o=- 1 1 IN IP4 192.168.1.10
+o=- 1 1 IN IP4 192.168.77.10
 s=Example AES67 Stream
 c=IN IP4 239.69.20.10/32
 t=0 0
@@ -31,22 +48,91 @@ a=rtpmap:96 L24/48000/2
 a=ptime:1`;
 
 function App() {
+  const initialized = useRef(false);
+
   const [streams, setStreams] = useState<Aes67Stream[]>([]);
+  const [interfaces, setInterfaces] = useState<NetworkInterface[]>([]);
+  const [selectedInterface, setSelectedInterface] = useState("");
+  const [discovery, setDiscovery] = useState<DiscoveryStatus>({
+    running: false,
+    interfaceIp: "",
+    message: "Discovery non avviata",
+  });
+
   const [routes, setRoutes] = useState<Record<string, boolean>>({});
   const [sdp, setSdp] = useState(exampleSdp);
-  const [message, setMessage] = useState("Discovery SAP attiva");
+  const [message, setMessage] = useState("Selezione interfaccia AES67");
   const [showImport, setShowImport] = useState(false);
+  const [switching, setSwitching] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
-      setStreams(await invoke<Aes67Stream[]>("get_streams"));
+      const [streamList, status] = await Promise.all([
+        invoke<Aes67Stream[]>("get_streams"),
+        invoke<DiscoveryStatus>("get_discovery_status"),
+      ]);
+
+      setStreams(streamList);
+      setDiscovery(status);
     } catch (error) {
       setMessage(String(error));
     }
   }, []);
 
+  const startDiscovery = useCallback(async (ip: string) => {
+    if (!ip) return;
+
+    setSwitching(true);
+    setMessage(`Avvio discovery su ${ip}`);
+
+    try {
+      await invoke("start_discovery", { interfaceIp: ip });
+      localStorage.setItem("bb-aes67-interface", ip);
+      setMessage(`Discovery SAP avviata su ${ip}`);
+    } catch (error) {
+      setMessage(`Errore discovery: ${error}`);
+    } finally {
+      setSwitching(false);
+    }
+  }, []);
+
   useEffect(() => {
-    refresh();
+    if (initialized.current) return;
+    initialized.current = true;
+
+    async function initialize() {
+      try {
+        const available =
+          await invoke<NetworkInterface[]>("list_network_interfaces");
+
+        setInterfaces(available);
+
+        const saved = localStorage.getItem("bb-aes67-interface");
+
+        const preferred =
+          available.find((item) => item.ip === saved) ??
+          available.find((item) =>
+            item.name.toUpperCase().includes("DANTE"),
+          ) ??
+          available[0];
+
+        if (preferred) {
+          setSelectedInterface(preferred.ip);
+          await startDiscovery(preferred.ip);
+        } else {
+          setMessage("Nessuna interfaccia IPv4 disponibile");
+        }
+
+        await refresh();
+      } catch (error) {
+        setMessage(String(error));
+      }
+    }
+
+    initialize();
+  }, [refresh, startDiscovery]);
+
+  useEffect(() => {
     const timer = window.setInterval(refresh, 2000);
     return () => window.clearInterval(timer);
   }, [refresh]);
@@ -61,17 +147,18 @@ function App() {
     [routes],
   );
 
+  async function changeInterface(ip: string) {
+    setSelectedInterface(ip);
+    await startDiscovery(ip);
+    await refresh();
+  }
+
   function toggleRoute(streamId: string, destination: string) {
     const key = `${streamId}:${destination}`;
     const updated = { ...routes, [key]: !routes[key] };
+
     setRoutes(updated);
     localStorage.setItem("bb-aes67-routes", JSON.stringify(updated));
-  }
-
-  async function addDemo() {
-    await invoke("add_demo_streams");
-    await refresh();
-    setMessage("Flussi dimostrativi caricati");
   }
 
   async function importSdp() {
@@ -85,6 +172,12 @@ function App() {
     }
   }
 
+  async function clearStreams() {
+    await invoke("clear_streams");
+    await refresh();
+    setMessage("Elenco flussi azzerato");
+  }
+
   return (
     <main>
       <header className="topbar">
@@ -94,10 +187,25 @@ function App() {
         </div>
 
         <div className="actions">
-          <button className="secondary" onClick={addDemo}>
-            Modalità demo
-          </button>
-          <button onClick={() => setShowImport(!showImport)}>
+          <label className="network-selector">
+            <span>Interfaccia AES67</span>
+            <select
+              value={selectedInterface}
+              disabled={switching}
+              onChange={(event) => changeInterface(event.target.value)}
+            >
+              {interfaces.map((item) => (
+                <option value={item.ip} key={`${item.name}-${item.ip}`}>
+                  {item.name} — {item.ip}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <button
+            className="secondary"
+            onClick={() => setShowImport(!showImport)}
+          >
             Importa SDP
           </button>
         </div>
@@ -108,30 +216,46 @@ function App() {
           <span>Flussi rilevati</span>
           <strong>{streams.length}</strong>
         </article>
+
         <article>
           <span>Routing configurati</span>
           <strong>{activeRoutes}</strong>
         </article>
+
         <article>
-          <span>Discovery</span>
-          <strong className="online">SAP attivo</strong>
+          <span>Discovery SAP</span>
+          <strong className={discovery.running ? "online" : "offline"}>
+            {discovery.running ? "Attivo" : "Fermo"}
+          </strong>
         </article>
+
         <article>
-          <span>PTP</span>
-          <strong className="warning">Non monitorato</strong>
+          <span>Interfaccia</span>
+          <strong className="interface-address">
+            {discovery.interfaceIp || "Non selezionata"}
+          </strong>
         </article>
       </section>
+
+      <div className={`discovery-message ${discovery.running ? "ok" : "error"}`}>
+        <span>{discovery.message || message}</span>
+        <span>{message}</span>
+      </div>
 
       {showImport && (
         <section className="panel import-panel">
           <div className="panel-title">
             <div>
               <h2>Importazione SDP</h2>
-              <p>Incolla la descrizione SDP annunciata dal trasmettitore.</p>
+              <p>Incolla la descrizione SDP del trasmettitore.</p>
             </div>
             <button onClick={importSdp}>Aggiungi flusso</button>
           </div>
-          <textarea value={sdp} onChange={(event) => setSdp(event.target.value)} />
+
+          <textarea
+            value={sdp}
+            onChange={(event) => setSdp(event.target.value)}
+          />
         </section>
       )}
 
@@ -139,11 +263,17 @@ function App() {
         <div className="panel-title">
           <div>
             <h2>Flussi AES67</h2>
-            <p>{message}</p>
+            <p>Flussi annunciati tramite SAP sulla rete selezionata.</p>
           </div>
-          <button className="secondary" onClick={refresh}>
-            Aggiorna
-          </button>
+
+          <div className="actions">
+            <button className="secondary" onClick={refresh}>
+              Aggiorna
+            </button>
+            <button className="danger" onClick={clearStreams}>
+              Pulisci elenco
+            </button>
+          </div>
         </div>
 
         <div className="stream-table">
@@ -152,12 +282,12 @@ function App() {
             <span>Multicast</span>
             <span>Formato</span>
             <span>Canali</span>
-            <span>Origine</span>
+            <span>Ultimo annuncio</span>
           </div>
 
           {streams.length === 0 && (
             <div className="empty">
-              Nessun flusso rilevato. Attiva la modalità demo oppure importa un SDP.
+              Nessun flusso rilevato sulla scheda selezionata.
             </div>
           )}
 
@@ -167,10 +297,20 @@ function App() {
                 <i className="stream-dot" />
                 <b>{stream.name}</b>
               </span>
-              <span>{stream.address}:{stream.port}</span>
-              <span>{stream.codec} · {stream.sampleRate / 1000} kHz</span>
+
+              <span>
+                {stream.address}:{stream.port}
+              </span>
+
+              <span>
+                {stream.codec} · {stream.sampleRate / 1000} kHz
+              </span>
+
               <span>{stream.channels}</span>
-              <span>{stream.source}</span>
+
+              <span>
+                {new Date(stream.lastSeen * 1000).toLocaleTimeString()}
+              </span>
             </div>
           ))}
         </div>
@@ -180,7 +320,7 @@ function App() {
         <div className="panel-title">
           <div>
             <h2>Matrice di routing</h2>
-            <p>Seleziona gli incroci sorgente-destinazione.</p>
+            <p>Configurazione locale sorgenti × destinazioni.</p>
           </div>
         </div>
 
@@ -194,21 +334,29 @@ function App() {
                 ))}
               </tr>
             </thead>
+
             <tbody>
               {streams.map((stream) => (
                 <tr key={stream.id}>
                   <td>
                     <b>{stream.name}</b>
-                    <small>{stream.channels} canali</small>
+                    <small>
+                      {stream.address}:{stream.port}
+                    </small>
                   </td>
+
                   {destinations.map((destination) => {
                     const key = `${stream.id}:${destination}`;
+
                     return (
                       <td key={destination}>
                         <button
-                          className={`crosspoint ${routes[key] ? "active" : ""}`}
-                          onClick={() => toggleRoute(stream.id, destination)}
-                          aria-label={`${stream.name} verso ${destination}`}
+                          className={`crosspoint ${
+                            routes[key] ? "active" : ""
+                          }`}
+                          onClick={() =>
+                            toggleRoute(stream.id, destination)
+                          }
                         />
                       </td>
                     );
@@ -221,8 +369,7 @@ function App() {
       </section>
 
       <footer>
-        La matrice di questo MVP salva la configurazione ma non modifica ancora
-        ricevitori Dante o NMOS.
+        Prossima fase: monitor RTP, perdita pacchetti, sequence error e jitter.
       </footer>
     </main>
   );

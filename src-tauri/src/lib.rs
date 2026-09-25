@@ -1,12 +1,18 @@
+use if_addrs::get_if_addrs;
 use serde::Serialize;
+use socket2::{Domain, Protocol, Socket, Type};
 use std::{
     collections::HashMap,
     hash::{Hash, Hasher},
-    net::{Ipv4Addr, UdpSocket},
-    sync::{Arc, Mutex},
+    net::{IpAddr, Ipv4Addr, SocketAddrV4, UdpSocket},
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc, Mutex,
+    },
     thread,
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
+use tauri::Manager;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -22,9 +28,26 @@ struct Aes67Stream {
     last_seen: u64,
 }
 
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct NetworkInterface {
+    name: String,
+    ip: String,
+}
+
+#[derive(Debug, Clone, Serialize, Default)]
+#[serde(rename_all = "camelCase")]
+struct DiscoveryStatus {
+    running: bool,
+    interface_ip: String,
+    message: String,
+}
+
 #[derive(Clone, Default)]
 struct AppState {
     streams: Arc<Mutex<HashMap<String, Aes67Stream>>>,
+    discovery: Arc<Mutex<DiscoveryStatus>>,
+    generation: Arc<AtomicU64>,
 }
 
 fn timestamp() -> u64 {
@@ -43,11 +66,11 @@ fn stream_id(name: &str, address: &str, port: u16) -> String {
 fn parse_sdp(sdp: &str, source: &str) -> Result<Aes67Stream, String> {
     let mut name = "Flusso AES67".to_string();
     let mut address = String::new();
-    let mut port = 0u16;
+    let mut port = 0;
     let mut payload = String::new();
     let mut codec = "L24".to_string();
-    let mut sample_rate = 48_000u32;
-    let mut channels = 2u16;
+    let mut sample_rate = 48_000;
+    let mut channels = 2;
 
     for line in sdp.lines().map(str::trim) {
         if let Some(value) = line.strip_prefix("s=") {
@@ -62,11 +85,7 @@ fn parse_sdp(sdp: &str, source: &str) -> Result<Aes67Stream, String> {
 
         if let Some(value) = line.strip_prefix("m=audio ") {
             let fields: Vec<&str> = value.split_whitespace().collect();
-            port = fields
-                .first()
-                .and_then(|value| value.parse().ok())
-                .unwrap_or(0);
-
+            port = fields.first().and_then(|v| v.parse().ok()).unwrap_or(0);
             payload = fields.get(2).unwrap_or(&"").to_string();
         }
 
@@ -75,28 +94,17 @@ fn parse_sdp(sdp: &str, source: &str) -> Result<Aes67Stream, String> {
             let rtp_payload = parts.next().unwrap_or_default();
             let format = parts.next().unwrap_or_default();
 
-            if payload.is_empty() || rtp_payload == payload {
-                let format_parts: Vec<&str> = format.split('/').collect();
-
-                codec = format_parts.first().unwrap_or(&"L24").to_string();
-                sample_rate = format_parts
-                    .get(1)
-                    .and_then(|value| value.parse().ok())
-                    .unwrap_or(48_000);
-                channels = format_parts
-                    .get(2)
-                    .and_then(|value| value.parse().ok())
-                    .unwrap_or(2);
+            if payload.is_empty() || payload == rtp_payload {
+                let values: Vec<&str> = format.split('/').collect();
+                codec = values.first().unwrap_or(&"L24").to_string();
+                sample_rate = values.get(1).and_then(|v| v.parse().ok()).unwrap_or(48_000);
+                channels = values.get(2).and_then(|v| v.parse().ok()).unwrap_or(2);
             }
         }
     }
 
-    if address.is_empty() {
-        return Err("SDP privo dell'indirizzo multicast c=IN IP4".into());
-    }
-
-    if port == 0 {
-        return Err("SDP privo di una porta audio valida".into());
+    if address.is_empty() || port == 0 {
+        return Err("SDP privo di multicast o porta audio validi".into());
     }
 
     Ok(Aes67Stream {
@@ -117,63 +125,146 @@ fn extract_sap_sdp(packet: &[u8]) -> Option<&str> {
         return None;
     }
 
-    let flags = packet[0];
-    let ipv6 = flags & 0x10 != 0;
+    let ipv6 = packet[0] & 0x10 != 0;
     let auth_words = packet[1] as usize;
     let source_size = if ipv6 { 16 } else { 4 };
     let offset = 4 + source_size + auth_words * 4;
+    let payload = packet.get(offset..)?;
 
-    if offset >= packet.len() {
-        return None;
-    }
+    let start = if payload.starts_with(b"v=0") {
+        0
+    } else {
+        payload.iter().position(|byte| *byte == 0)? + 1
+    };
 
-    let payload = &packet[offset..];
-    let content_start = payload
-        .iter()
-        .position(|byte| *byte == 0)
-        .map(|position| position + 1)
-        .unwrap_or(0);
-
-    std::str::from_utf8(payload.get(content_start..)?).ok()
+    std::str::from_utf8(payload.get(start..)?).ok()
 }
 
-fn start_sap_listener(state: AppState) {
-    thread::spawn(move || {
-        let socket = match UdpSocket::bind(("0.0.0.0", 9875)) {
-            Ok(socket) => socket,
-            Err(error) => {
-                eprintln!("Impossibile aprire SAP UDP/9875: {error}");
-                return;
-            }
-        };
+fn create_sap_socket(interface: Ipv4Addr) -> Result<UdpSocket, String> {
+    let socket =
+        Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP)).map_err(|e| e.to_string())?;
 
-        if let Err(error) = socket.join_multicast_v4(
-            &Ipv4Addr::new(239, 255, 255, 255),
-            &Ipv4Addr::new(192, 168, 77, 85),
-        ) {
-            eprintln!("Impossibile entrare nel gruppo SAP: {error}");
+    socket.set_reuse_address(true).map_err(|e| e.to_string())?;
+
+    socket
+        .bind(&SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 9875).into())
+        .map_err(|e| format!("Impossibile aprire UDP/9875: {e}"))?;
+
+    let socket: UdpSocket = socket.into();
+
+    let mut joined = false;
+
+    for group in [
+        Ipv4Addr::new(239, 255, 255, 255),
+        Ipv4Addr::new(224, 2, 127, 254),
+    ] {
+        if socket.join_multicast_v4(&group, &interface).is_ok() {
+            joined = true;
         }
+    }
 
-        let _ = socket.join_multicast_v4(
-            &Ipv4Addr::new(224, 2, 127, 254),
-            &Ipv4Addr::new(192, 168, 77, 85),
-        );
+    if !joined {
+        return Err(format!(
+            "Impossibile aderire ai gruppi SAP tramite {interface}"
+        ));
+    }
 
-        let _ = socket.set_read_timeout(Some(Duration::from_secs(1)));
+    socket
+        .set_read_timeout(Some(Duration::from_secs(1)))
+        .map_err(|e| e.to_string())?;
+
+    Ok(socket)
+}
+
+#[tauri::command]
+fn list_network_interfaces() -> Result<Vec<NetworkInterface>, String> {
+    let mut result = Vec::new();
+
+    for interface in get_if_addrs().map_err(|e| e.to_string())? {
+        if let IpAddr::V4(ip) = interface.ip() {
+            if !ip.is_loopback()
+                && !result
+                    .iter()
+                    .any(|item: &NetworkInterface| item.ip == ip.to_string())
+            {
+                result.push(NetworkInterface {
+                    name: interface.name,
+                    ip: ip.to_string(),
+                });
+            }
+        }
+    }
+
+    Ok(result)
+}
+
+#[tauri::command]
+fn start_discovery(interface_ip: String, state: tauri::State<AppState>) -> Result<(), String> {
+    let interface: Ipv4Addr = interface_ip
+        .parse()
+        .map_err(|_| "Indirizzo IPv4 non valido".to_string())?;
+
+    let generation = state.generation.fetch_add(1, Ordering::SeqCst) + 1;
+
+    thread::sleep(Duration::from_millis(1100));
+
+    let socket = match create_sap_socket(interface) {
+        Ok(socket) => socket,
+        Err(error) => {
+            if let Ok(mut status) = state.discovery.lock() {
+                status.running = false;
+                status.message = error.clone();
+            }
+            return Err(error);
+        }
+    };
+
+    if let Ok(mut status) = state.discovery.lock() {
+        status.running = true;
+        status.interface_ip = interface_ip.clone();
+        status.message = format!("SAP attivo su {interface_ip}");
+    }
+
+    let app_state = state.inner().clone();
+
+    thread::spawn(move || {
         let mut buffer = [0u8; 65_535];
 
-        loop {
-            if let Ok((size, sender)) = socket.recv_from(&mut buffer) {
-                if let Some(sdp) = extract_sap_sdp(&buffer[..size]) {
-                    if let Ok(stream) = parse_sdp(sdp, &format!("SAP Ã‚Â· {}", sender.ip())) {
-                        if let Ok(mut streams) = state.streams.lock() {
-                            streams.insert(stream.id.clone(), stream);
+        while app_state.generation.load(Ordering::SeqCst) == generation {
+            match socket.recv_from(&mut buffer) {
+                Ok((size, sender)) => {
+                    if let Some(sdp) = extract_sap_sdp(&buffer[..size]) {
+                        if let Ok(stream) = parse_sdp(sdp, &format!("SAP · {}", sender.ip())) {
+                            if let Ok(mut streams) = app_state.streams.lock() {
+                                streams.insert(stream.id.clone(), stream);
+                            }
                         }
                     }
+                }
+                Err(error)
+                    if error.kind() == std::io::ErrorKind::TimedOut
+                        || error.kind() == std::io::ErrorKind::WouldBlock => {}
+                Err(error) => {
+                    if let Ok(mut status) = app_state.discovery.lock() {
+                        status.running = false;
+                        status.message = error.to_string();
+                    }
+                    break;
                 }
             }
         }
     });
+
+    Ok(())
+}
+
+#[tauri::command]
+fn get_discovery_status(state: tauri::State<AppState>) -> DiscoveryStatus {
+    state
+        .discovery
+        .lock()
+        .map(|s| s.clone())
+        .unwrap_or_default()
 }
 
 #[tauri::command]
@@ -182,9 +273,20 @@ fn get_streams(state: tauri::State<AppState>) -> Vec<Aes67Stream> {
         return Vec::new();
     };
 
-    let mut result: Vec<Aes67Stream> = streams.values().cloned().collect();
+    let mut result: Vec<_> = streams.values().cloned().collect();
     result.sort_by(|a, b| a.name.cmp(&b.name));
     result
+}
+
+#[tauri::command]
+fn clear_streams(state: tauri::State<AppState>) -> Result<(), String> {
+    state
+        .streams
+        .lock()
+        .map_err(|_| "Archivio non disponibile".to_string())?
+        .clear();
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -194,56 +296,29 @@ fn import_sdp(sdp: String, state: tauri::State<AppState>) -> Result<Aes67Stream,
     state
         .streams
         .lock()
-        .map_err(|_| "Archivio flussi non disponibile".to_string())?
+        .map_err(|_| "Archivio non disponibile".to_string())?
         .insert(stream.id.clone(), stream.clone());
 
     Ok(stream)
 }
 
-#[tauri::command]
-fn add_demo_streams(state: tauri::State<AppState>) -> Result<(), String> {
-    let demo = [
-        ("Dante Main L-R", "239.69.1.10", 5004, "L24", 48_000, 2),
-        ("Studio Microphones", "239.69.1.11", 5006, "L24", 48_000, 8),
-        ("RAVENNA Program", "239.69.1.12", 5008, "L16", 48_000, 2),
-        ("Contribution 96K", "239.69.1.13", 5010, "L24", 96_000, 2),
-    ];
-
-    let mut streams = state
-        .streams
-        .lock()
-        .map_err(|_| "Archivio flussi non disponibile".to_string())?;
-
-    for (name, address, port, codec, sample_rate, channels) in demo {
-        let stream = Aes67Stream {
-            id: stream_id(name, address, port),
-            name: name.into(),
-            address: address.into(),
-            port,
-            codec: codec.into(),
-            sample_rate,
-            channels,
-            source: "Demo".into(),
-            last_seen: timestamp(),
-        };
-
-        streams.insert(stream.id.clone(), stream);
-    }
-
-    Ok(())
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let state = AppState::default();
-    start_sap_listener(state.clone());
-
     tauri::Builder::default()
-        .manage(state)
+        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
+        .manage(AppState::default())
         .invoke_handler(tauri::generate_handler![
+            list_network_interfaces,
+            start_discovery,
+            get_discovery_status,
             get_streams,
-            import_sdp,
-            add_demo_streams
+            clear_streams,
+            import_sdp
         ])
         .run(tauri::generate_context!())
         .expect("Errore durante l'avvio di BB AES67 Matrix");
