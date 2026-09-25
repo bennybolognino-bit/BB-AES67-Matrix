@@ -11,6 +11,7 @@ import RtpMonitor from "./RtpMonitor";
 import AudioMonitor from "./AudioMonitor";
 import Recorder from "./Recorder";
 import RoutingEngine from "./RoutingEngine";
+import RealMatrix from "./RealMatrix";
 
 interface Aes67Stream {
   id: string;
@@ -35,12 +36,6 @@ interface DiscoveryStatus {
   message: string;
 }
 
-const destinations = [
-  "Monitor Control Room",
-  "Recorder A",
-  "Program TX",
-  "Studio Output",
-];
 
 const exampleSdp = `v=0
 o=- 1 1 IN IP4 192.168.77.10
@@ -157,13 +152,6 @@ function App() {
     await refresh();
   }
 
-  function toggleRoute(streamId: string, destination: string) {
-    const key = `${streamId}:${destination}`;
-    const updated = { ...routes, [key]: !routes[key] };
-
-    setRoutes(updated);
-    localStorage.setItem("bb-aes67-routes", JSON.stringify(updated));
-  }
 
   async function importSdp() {
     try {
@@ -326,59 +314,7 @@ function App() {
       <Recorder streams={streams} interfaceIp={selectedInterface} />
 
       <RoutingEngine streams={streams} interfaceIp={selectedInterface} />
-
-
-      <section className="panel">
-        <div className="panel-title">
-          <div>
-            <h2>Matrice di routing</h2>
-            <p>Configurazione locale sorgenti × destinazioni.</p>
-          </div>
-        </div>
-
-        <div className="matrix-wrap">
-          <table className="matrix">
-            <thead>
-              <tr>
-                <th>Sorgente</th>
-                {destinations.map((destination) => (
-                  <th key={destination}>{destination}</th>
-                ))}
-              </tr>
-            </thead>
-
-            <tbody>
-              {streams.map((stream) => (
-                <tr key={stream.id}>
-                  <td>
-                    <b>{stream.name}</b>
-                    <small>
-                      {stream.address}:{stream.port}
-                    </small>
-                  </td>
-
-                  {destinations.map((destination) => {
-                    const key = `${stream.id}:${destination}`;
-
-                    return (
-                      <td key={destination}>
-                        <button
-                          className={`crosspoint ${
-                            routes[key] ? "active" : ""
-                          }`}
-                          onClick={() =>
-                            toggleRoute(stream.id, destination)
-                          }
-                        />
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+      <RealMatrix streams={streams} interfaceIp={selectedInterface} />
 
       <footer>
         Prossima fase: monitor RTP, perdita pacchetti, sequence error e jitter.

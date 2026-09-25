@@ -681,3 +681,97 @@ button.text-button {
   grid-column: 1 / -1;
   color: #ed6c74;
 }
+
+.preset-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 15px;
+}
+
+.preset-bar > div {
+  display: flex;
+}
+
+.preset-delete,
+.destination-remove,
+.cell-settings {
+  padding: 3px 7px;
+  border: 0;
+  color: #7891ab;
+  background: transparent;
+}
+
+.preset-delete {
+  color: #ed6c74;
+}
+
+.real-matrix th {
+  position: relative;
+  min-width: 170px;
+}
+
+.real-matrix th small {
+  display: block;
+  margin-top: 5px;
+  font-family: Consolas, monospace;
+}
+
+.destination-remove {
+  position: absolute;
+  top: 2px;
+  right: 3px;
+}
+
+.matrix-cell {
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+}
+
+.matrix-cell small {
+  color: #70879e;
+  font-size: 9px;
+}
+
+.cell-settings {
+  font-size: 14px;
+}
+
+.crosspoint-editor {
+  margin-top: 18px;
+  padding: 17px;
+  border: 1px solid #2b5275;
+  border-radius: 10px;
+  background: #091522;
+}
+
+.editor-channels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 13px;
+  border: 1px solid #1b3552;
+  border-radius: 7px;
+}
+
+.editor-channels label {
+  color: #9fb1c3;
+  font-size: 11px;
+}
+
+.editor-controls {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  margin-top: 15px;
+}
+
+.editor-controls > label:first-child {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 7px;
+  color: #9fb1c3;
+  font-size: 11px;
+}
