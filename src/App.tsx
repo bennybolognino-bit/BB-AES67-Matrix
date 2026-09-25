@@ -13,6 +13,7 @@ import Recorder from "./Recorder";
 import RoutingEngine from "./RoutingEngine";
 import RealMatrix from "./RealMatrix";
 import AlarmCenter from "./AlarmCenter";
+import PtpMonitor from "./PtpMonitor";
 
 interface Aes67Stream {
   id: string;
@@ -316,6 +317,8 @@ function App() {
 
       <RoutingEngine streams={streams} interfaceIp={selectedInterface} />
       <RealMatrix streams={streams} interfaceIp={selectedInterface} />
+
+      <PtpMonitor interfaceIp={selectedInterface} />
 
       <AlarmCenter streams={streams} interfaceIp={selectedInterface} />
 

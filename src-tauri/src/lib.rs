@@ -1,4 +1,5 @@
 mod audio_monitor;
+mod ptp_monitor;
 mod recorder;
 mod routing;
 mod rtp_monitor;
@@ -333,6 +334,7 @@ pub fn run() {
         .manage(audio_monitor::AudioMonitorState::default())
         .manage(recorder::RecorderState::default())
         .manage(routing::RoutingState::default())
+        .manage(ptp_monitor::PtpMonitorState::default())
         .invoke_handler(tauri::generate_handler![
             list_network_interfaces,
             start_discovery,
@@ -354,7 +356,10 @@ pub fn run() {
             routing::start_route,
             routing::update_route,
             routing::stop_route,
-            routing::get_routes
+            routing::get_routes,
+            ptp_monitor::start_ptp_monitor,
+            ptp_monitor::get_ptp_status,
+            ptp_monitor::stop_ptp_monitor
         ])
         .run(tauri::generate_context!())
         .expect("Errore durante l'avvio di BB AES67 Matrix");

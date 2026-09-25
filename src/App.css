@@ -851,3 +851,52 @@ button.text-button {
 .event-severity.critical {
   color: #f0525f;
 }
+
+.ptp-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ptp-locked {
+  color: #38d996;
+  font-weight: 900;
+}
+
+.ptp-waiting {
+  color: #efb743;
+  font-weight: 900;
+}
+
+.ptp-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.ptp-grid article {
+  padding: 13px;
+  border: 1px solid #1b3552;
+  border-radius: 8px;
+  background: #091522;
+}
+
+.ptp-grid span {
+  display: block;
+  margin-bottom: 7px;
+  color: #70879e;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.ptp-grid b {
+  color: #dceaff;
+  font-family: Consolas, monospace;
+  font-size: 13px;
+}
+
+.ptp-note {
+  margin-top: 12px;
+  color: #70879e;
+  font-size: 11px;
+}
