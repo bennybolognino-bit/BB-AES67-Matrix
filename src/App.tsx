@@ -12,6 +12,7 @@ import AudioMonitor from "./AudioMonitor";
 import Recorder from "./Recorder";
 import RoutingEngine from "./RoutingEngine";
 import RealMatrix from "./RealMatrix";
+import AlarmCenter from "./AlarmCenter";
 
 interface Aes67Stream {
   id: string;
@@ -315,6 +316,8 @@ function App() {
 
       <RoutingEngine streams={streams} interfaceIp={selectedInterface} />
       <RealMatrix streams={streams} interfaceIp={selectedInterface} />
+
+      <AlarmCenter streams={streams} interfaceIp={selectedInterface} />
 
       <footer>
         Prossima fase: monitor RTP, perdita pacchetti, sequence error e jitter.

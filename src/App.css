@@ -775,3 +775,79 @@ button.text-button {
   color: #9fb1c3;
   font-size: 11px;
 }
+
+.alarm-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.alarm-active {
+  color: #f0525f;
+  font-weight: 900;
+}
+
+.alarm-settings {
+  display: flex;
+  margin-bottom: 14px;
+}
+
+.alarm-settings label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #7891ab;
+  font-size: 12px;
+}
+
+.alarm-settings input {
+  width: 75px;
+  padding: 7px;
+  border: 1px solid #29496b;
+  border-radius: 6px;
+  color: #dceeff;
+  background: #0a1726;
+}
+
+.event-list {
+  max-height: 350px;
+  overflow-y: auto;
+  border: 1px solid #1b3552;
+  border-radius: 8px;
+}
+
+.event-row {
+  display: grid;
+  grid-template-columns: 80px 150px 1fr;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #162d47;
+  color: #b5c5d5;
+  font-size: 12px;
+}
+
+.event-row:last-child {
+  border-bottom: 0;
+}
+
+.event-row time {
+  color: #70879e;
+}
+
+.event-severity {
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.event-severity.info {
+  color: #45baff;
+}
+
+.event-severity.warning {
+  color: #efb743;
+}
+
+.event-severity.critical {
+  color: #f0525f;
+}

@@ -125,7 +125,7 @@ fn parse_sdp(sdp: &str, source: &str) -> Result<Aes67Stream, String> {
     })
 }
 
-fn extract_sap_sdp(packet: &[u8]) -> Option<&str> {
+fn extract_sap_sdp(packet: &[u8]) -> Option<(bool, &str)> {
     if packet.len() < 8 {
         return None;
     }
@@ -142,7 +142,9 @@ fn extract_sap_sdp(packet: &[u8]) -> Option<&str> {
         payload.iter().position(|byte| *byte == 0)? + 1
     };
 
-    std::str::from_utf8(payload.get(start..)?).ok()
+    let sdp = std::str::from_utf8(payload.get(start..)?).ok()?;
+    let deletion = packet[0] & 0x04 != 0;
+    Some((deletion, sdp))
 }
 
 fn create_sap_socket(interface: Ipv4Addr) -> Result<UdpSocket, String> {
@@ -238,10 +240,14 @@ fn start_discovery(interface_ip: String, state: tauri::State<AppState>) -> Resul
         while app_state.generation.load(Ordering::SeqCst) == generation {
             match socket.recv_from(&mut buffer) {
                 Ok((size, sender)) => {
-                    if let Some(sdp) = extract_sap_sdp(&buffer[..size]) {
+                    if let Some((deletion, sdp)) = extract_sap_sdp(&buffer[..size]) {
                         if let Ok(stream) = parse_sdp(sdp, &format!("SAP · {}", sender.ip())) {
                             if let Ok(mut streams) = app_state.streams.lock() {
-                                streams.insert(stream.id.clone(), stream);
+                                if deletion {
+                                    streams.remove(&stream.id);
+                                } else {
+                                    streams.insert(stream.id.clone(), stream);
+                                }
                             }
                         }
                     }
@@ -274,9 +280,15 @@ fn get_discovery_status(state: tauri::State<AppState>) -> DiscoveryStatus {
 
 #[tauri::command]
 fn get_streams(state: tauri::State<AppState>) -> Vec<Aes67Stream> {
-    let Ok(streams) = state.streams.lock() else {
+    let Ok(mut streams) = state.streams.lock() else {
         return Vec::new();
     };
+
+    let now = timestamp();
+
+    streams.retain(|_, stream| {
+        stream.source == "SDP manuale" || now.saturating_sub(stream.last_seen) <= 180
+    });
 
     let mut result: Vec<_> = streams.values().cloned().collect();
     result.sort_by(|a, b| a.name.cmp(&b.name));
