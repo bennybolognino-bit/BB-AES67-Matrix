@@ -10,6 +10,7 @@ import "./App.css";
 import RtpMonitor from "./RtpMonitor";
 import AudioMonitor from "./AudioMonitor";
 import Recorder from "./Recorder";
+import RoutingEngine from "./RoutingEngine";
 
 interface Aes67Stream {
   id: string;
@@ -323,6 +324,8 @@ function App() {
       <AudioMonitor streams={streams} interfaceIp={selectedInterface} />
 
       <Recorder streams={streams} interfaceIp={selectedInterface} />
+
+      <RoutingEngine streams={streams} interfaceIp={selectedInterface} />
 
 
       <section className="panel">

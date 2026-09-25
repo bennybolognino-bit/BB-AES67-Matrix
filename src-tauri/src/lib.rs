@@ -1,5 +1,6 @@
 mod audio_monitor;
 mod recorder;
+mod routing;
 mod rtp_monitor;
 
 use if_addrs::get_if_addrs;
@@ -319,6 +320,7 @@ pub fn run() {
         .manage(rtp_monitor::RtpMonitorState::default())
         .manage(audio_monitor::AudioMonitorState::default())
         .manage(recorder::RecorderState::default())
+        .manage(routing::RoutingState::default())
         .invoke_handler(tauri::generate_handler![
             list_network_interfaces,
             start_discovery,
@@ -336,7 +338,11 @@ pub fn run() {
             recorder::choose_recording_folder,
             recorder::start_recording,
             recorder::stop_recording,
-            recorder::get_recording_status
+            recorder::get_recording_status,
+            routing::start_route,
+            routing::update_route,
+            routing::stop_route,
+            routing::get_routes
         ])
         .run(tauri::generate_context!())
         .expect("Errore durante l'avvio di BB AES67 Matrix");
