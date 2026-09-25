@@ -1,3 +1,4 @@
+mod audio_monitor;
 mod rtp_monitor;
 
 use if_addrs::get_if_addrs;
@@ -315,6 +316,7 @@ pub fn run() {
         }))
         .manage(AppState::default())
         .manage(rtp_monitor::RtpMonitorState::default())
+        .manage(audio_monitor::AudioMonitorState::default())
         .invoke_handler(tauri::generate_handler![
             list_network_interfaces,
             start_discovery,
@@ -324,7 +326,11 @@ pub fn run() {
             import_sdp,
             rtp_monitor::start_rtp_monitor,
             rtp_monitor::stop_rtp_monitor,
-            rtp_monitor::get_rtp_stats
+            rtp_monitor::get_rtp_stats,
+            audio_monitor::list_audio_outputs,
+            audio_monitor::start_audio_monitor,
+            audio_monitor::stop_audio_monitor,
+            audio_monitor::get_audio_status
         ])
         .run(tauri::generate_context!())
         .expect("Errore durante l'avvio di BB AES67 Matrix");

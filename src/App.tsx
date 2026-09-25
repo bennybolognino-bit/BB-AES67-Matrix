@@ -8,6 +8,7 @@ import {
 import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
 import RtpMonitor from "./RtpMonitor";
+import AudioMonitor from "./AudioMonitor";
 
 interface Aes67Stream {
   id: string;
@@ -317,6 +318,8 @@ function App() {
         </div>
       </section>
       <RtpMonitor streams={streams} interfaceIp={selectedInterface} />
+
+      <AudioMonitor streams={streams} interfaceIp={selectedInterface} />
 
 
       <section className="panel">
