@@ -26,6 +26,8 @@ if-addrs = "0.15.0"
 socket2 = "0.6.5"
 tauri-plugin-single-instance = "2.4.5"
 cpal = "0.15.3"
+hound = "3.5.1"
+rfd = "0.15.2"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

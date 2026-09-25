@@ -513,3 +513,96 @@ button:disabled {
 .listen-footer button {
   margin-left: auto;
 }
+
+.recording-controls {
+  display: grid;
+  grid-template-columns: 1.3fr 1.3fr .7fr;
+  gap: 12px;
+}
+
+.recording-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #7891ab;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.recording-controls select,
+.recording-controls input {
+  padding: 10px;
+  border: 1px solid #29496b;
+  border-radius: 7px;
+  color: #dceeff;
+  background: #0a1726;
+}
+
+.folder-row,
+.recording-status {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-top: 15px;
+  color: #7891ab;
+  font-size: 12px;
+}
+
+.folder-row span,
+.recording-file {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.channel-selection {
+  margin-top: 16px;
+  padding: 14px;
+  border: 1px solid #1b3552;
+  border-radius: 8px;
+  background: #091522;
+}
+
+.channel-selection > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.channel-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.channel-grid label {
+  color: #9fb1c3;
+  font-size: 11px;
+}
+
+button.text-button {
+  padding: 3px 7px;
+  border: 0;
+  color: #45baff;
+  background: transparent;
+  font-size: 11px;
+}
+
+.recording-status button {
+  margin-left: auto;
+}
+
+.recording-status strong {
+  color: #ed6c74;
+}
+
+.recording-active {
+  color: #f0525f;
+  font-weight: 900;
+  animation: recording-pulse 1s infinite;
+}
+
+@keyframes recording-pulse {
+  50% { opacity: .45; }
+}
