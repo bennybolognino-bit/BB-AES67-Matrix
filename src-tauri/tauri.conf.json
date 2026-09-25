@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "bb-aes67-matrix",
-  "version": "0.1.0",
+  "productName": "BB AES67 Matrix",
+  "version": "0.2.0",
   "identifier": "com.bennybolognino.bbaes67matrix",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -12,9 +12,13 @@
   "app": {
     "windows": [
       {
-        "title": "bb-aes67-matrix",
-        "width": 800,
-        "height": 600
+        "title": "BB AES67 Matrix",
+        "width": 1500,
+        "height": 950,
+        "minWidth": 1100,
+        "minHeight": 700,
+        "center": true,
+        "resizable": true
       }
     ],
     "security": {
@@ -23,13 +27,23 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": [
+      "nsis"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "publisher": "BB Broadcast",
+    "shortDescription": "Controllo, monitoraggio e routing AES67",
+    "longDescription": "Applicazione Windows per discovery SAP/SDP, monitor RTP, PTP, registrazione, routing AES67 e controllo NMOS.",
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
   }
 }
