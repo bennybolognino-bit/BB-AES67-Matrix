@@ -7,6 +7,8 @@ interface Stream {
   address: string;
   port: number;
   sampleRate: number;
+  codec: string;
+  channels: number;
 }
 
 interface RtpStats {
@@ -14,14 +16,15 @@ interface RtpStats {
   running: boolean;
   online: boolean;
   packets: number;
-  bytes: number;
   estimatedLost: number;
   outOfOrder: number;
   duplicates: number;
   jitterMs: number;
   bitrateMbps: number;
-  lastSequence: number | null;
-  lastPacketAt: number;
+  meterSupported: boolean;
+  levelsDbfs: number[];
+  silent: boolean;
+  clipping: boolean;
 }
 
 interface Props {
@@ -29,11 +32,26 @@ interface Props {
   interfaceIp: string;
 }
 
+function Meter({ level, channel }: { level: number; channel: number }) {
+  const width = Math.max(0, Math.min(100, ((level + 60) / 60) * 100));
+
+  return (
+    <div className="meter-line">
+      <span>CH {channel + 1}</span>
+      <div className="meter-track">
+        <i
+          className={level >= -0.5 ? "clip" : level >= -12 ? "hot" : ""}
+          style={{ width: `${width}%` }}
+        />
+      </div>
+      <b>{level.toFixed(1)}</b>
+    </div>
+  );
+}
+
 function RtpMonitor({ streams, interfaceIp }: Props) {
   const [stats, setStats] = useState<RtpStats[]>([]);
-  const [message, setMessage] = useState(
-    "Avvia il monitor sul flusso desiderato.",
-  );
+  const [message, setMessage] = useState("Avvia il monitor desiderato.");
 
   useEffect(() => {
     async function refresh() {
@@ -41,11 +59,11 @@ function RtpMonitor({ streams, interfaceIp }: Props) {
     }
 
     refresh();
-    const timer = window.setInterval(refresh, 1000);
+    const timer = window.setInterval(refresh, 250);
     return () => window.clearInterval(timer);
   }, []);
 
-  const statsByStream = useMemo(
+  const byStream = useMemo(
     () => new Map(stats.map((item) => [item.streamId, item])),
     [stats],
   );
@@ -57,10 +75,12 @@ function RtpMonitor({ streams, interfaceIp }: Props) {
         address: stream.address,
         port: stream.port,
         sampleRate: stream.sampleRate,
+        codec: stream.codec,
+        channels: stream.channels,
         interfaceIp,
       });
 
-      setMessage(`Monitor RTP avviato: ${stream.name}`);
+      setMessage(`Monitor audio avviato: ${stream.name}`);
     } catch (error) {
       setMessage(`Errore monitor: ${error}`);
     }
@@ -75,69 +95,92 @@ function RtpMonitor({ streams, interfaceIp }: Props) {
     <section className="panel">
       <div className="panel-title">
         <div>
-          <h2>Monitor RTP</h2>
+          <h2>Monitor RTP e livelli audio</h2>
           <p>{message}</p>
         </div>
       </div>
 
-      <div className="rtp-table">
-        <div className="rtp-row rtp-head">
-          <span>Flusso</span>
-          <span>Stato</span>
-          <span>Pacchetti</span>
-          <span>Perduti</span>
-          <span>Fuori seq.</span>
-          <span>Jitter</span>
-          <span>Bitrate</span>
-          <span>Controllo</span>
-        </div>
-
+      <div className="monitor-cards">
         {streams.map((stream) => {
-          const item = statsByStream.get(stream.id);
+          const item = byStream.get(stream.id);
+          const visibleLevels = item?.levelsDbfs.slice(0, 16) ?? [];
 
           return (
-            <div className="rtp-row" key={stream.id}>
-              <span>
-                <b>{stream.name}</b>
-                <small>
-                  {stream.address}:{stream.port}
-                </small>
-              </span>
+            <article className="monitor-card" key={stream.id}>
+              <div className="monitor-heading">
+                <div>
+                  <b>{stream.name}</b>
+                  <small>
+                    {stream.address}:{stream.port} · {stream.codec} ·{" "}
+                    {stream.channels} CH
+                  </small>
+                </div>
 
-              <span className={item?.online ? "rtp-online" : "rtp-offline"}>
-                {item?.online
-                  ? "ONLINE"
-                  : item?.running
-                    ? "ATTESA"
-                    : "FERMO"}
-              </span>
-
-              <span>{item?.packets.toLocaleString() ?? "—"}</span>
-              <span>{item?.estimatedLost.toLocaleString() ?? "—"}</span>
-              <span>{item?.outOfOrder.toLocaleString() ?? "—"}</span>
-              <span>
-                {item ? `${item.jitterMs.toFixed(3)} ms` : "—"}
-              </span>
-              <span>
-                {item ? `${item.bitrateMbps.toFixed(2)} Mb/s` : "—"}
-              </span>
-
-              <span>
-                {item?.running ? (
-                  <button className="danger compact" onClick={() => stop(stream)}>
-                    Stop
-                  </button>
-                ) : (
-                  <button
-                    className="compact"
-                    disabled={!interfaceIp}
-                    onClick={() => start(stream)}
+                <div className="monitor-actions">
+                  <span
+                    className={
+                      item?.clipping
+                        ? "audio-clip"
+                        : item?.silent
+                          ? "audio-silent"
+                          : item?.online
+                            ? "rtp-online"
+                            : "rtp-offline"
+                    }
                   >
-                    Monitora
-                  </button>
-                )}
-              </span>
-            </div>
+                    {item?.clipping
+                      ? "CLIP"
+                      : item?.silent
+                        ? "SILENZIO"
+                        : item?.online
+                          ? "ONLINE"
+                          : item?.running
+                            ? "ATTESA"
+                            : "FERMO"}
+                  </span>
+
+                  {item?.running ? (
+                    <button className="danger compact" onClick={() => stop(stream)}>
+                      Stop
+                    </button>
+                  ) : (
+                    <button
+                      className="compact"
+                      disabled={!interfaceIp}
+                      onClick={() => start(stream)}
+                    >
+                      Monitora
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {item?.meterSupported && visibleLevels.length > 0 ? (
+                <div className="meters">
+                  {visibleLevels.map((level, index) => (
+                    <Meter level={level} channel={index} key={index} />
+                  ))}
+
+                  {stream.channels > 16 && (
+                    <small>+ {stream.channels - 16} canali non visualizzati</small>
+                  )}
+                </div>
+              ) : (
+                <div className="meter-unavailable">
+                  {item?.running
+                    ? "VU meter disponibile solamente per PCM L16/L24."
+                    : "Avvia il monitor per visualizzare i livelli."}
+                </div>
+              )}
+
+              <div className="monitor-stats">
+                <span>Pacchetti <b>{item?.packets.toLocaleString() ?? "—"}</b></span>
+                <span>Persi <b>{item?.estimatedLost.toLocaleString() ?? "—"}</b></span>
+                <span>Fuori seq. <b>{item?.outOfOrder.toLocaleString() ?? "—"}</b></span>
+                <span>Jitter <b>{item ? item.jitterMs.toFixed(3) : "—"} ms</b></span>
+                <span>Bitrate <b>{item ? item.bitrateMbps.toFixed(2) : "—"} Mb/s</b></span>
+              </div>
+            </article>
           );
         })}
       </div>
