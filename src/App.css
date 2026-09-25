@@ -900,3 +900,104 @@ button.text-button {
   color: #70879e;
   font-size: 11px;
 }
+
+.nmos-registries {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.nmos-url {
+  display: flex;
+  gap: 10px;
+}
+
+.nmos-url input {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid #29496b;
+  border-radius: 7px;
+  color: #dceeff;
+  background: #0a1726;
+}
+
+.nmos-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.nmos-summary article {
+  padding: 13px;
+  border: 1px solid #1b3552;
+  border-radius: 8px;
+  background: #091522;
+}
+
+.nmos-summary span {
+  display: block;
+  color: #70879e;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.nmos-summary b {
+  display: block;
+  margin-top: 5px;
+  font-size: 22px;
+}
+
+.nmos-routing {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto auto;
+  align-items: end;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.nmos-routing label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #7891ab;
+  font-size: 11px;
+}
+
+.nmos-routing select {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #29496b;
+  border-radius: 7px;
+  color: #dceeff;
+  background: #0a1726;
+}
+
+.nmos-arrow {
+  padding-bottom: 10px;
+  color: #45baff;
+  font-size: 22px;
+}
+
+.nmos-resource-list {
+  max-height: 260px;
+  overflow-y: auto;
+  margin-top: 16px;
+  border: 1px solid #1b3552;
+  border-radius: 8px;
+}
+
+.nmos-resource-list > div {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1.5fr .6fr;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #162d47;
+  color: #7891ab;
+  font-size: 11px;
+}
+
+.nmos-resource-list b {
+  color: #dceeff;
+}

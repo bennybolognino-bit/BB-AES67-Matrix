@@ -1,4 +1,5 @@
 mod audio_monitor;
+mod nmos;
 mod ptp_monitor;
 mod recorder;
 mod routing;
@@ -359,7 +360,10 @@ pub fn run() {
             routing::get_routes,
             ptp_monitor::start_ptp_monitor,
             ptp_monitor::get_ptp_status,
-            ptp_monitor::stop_ptp_monitor
+            ptp_monitor::stop_ptp_monitor,
+            nmos::discover_nmos_registries,
+            nmos::query_nmos_registry,
+            nmos::connect_nmos_receiver
         ])
         .run(tauri::generate_context!())
         .expect("Errore durante l'avvio di BB AES67 Matrix");

@@ -28,6 +28,8 @@ tauri-plugin-single-instance = "2.4.5"
 cpal = "0.15.3"
 hound = "3.5.1"
 rfd = "0.15.2"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+mdns-sd = "0.11.5"
 
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration

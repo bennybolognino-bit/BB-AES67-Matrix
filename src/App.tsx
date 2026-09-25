@@ -14,6 +14,7 @@ import RoutingEngine from "./RoutingEngine";
 import RealMatrix from "./RealMatrix";
 import AlarmCenter from "./AlarmCenter";
 import PtpMonitor from "./PtpMonitor";
+import NmosPanel from "./NmosPanel";
 
 interface Aes67Stream {
   id: string;
@@ -317,6 +318,8 @@ function App() {
 
       <RoutingEngine streams={streams} interfaceIp={selectedInterface} />
       <RealMatrix streams={streams} interfaceIp={selectedInterface} />
+
+      <NmosPanel />
 
       <PtpMonitor interfaceIp={selectedInterface} />
 
