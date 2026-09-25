@@ -1,3 +1,5 @@
+mod rtp_monitor;
+
 use if_addrs::get_if_addrs;
 use serde::Serialize;
 use socket2::{Domain, Protocol, Socket, Type};
@@ -312,13 +314,17 @@ pub fn run() {
             }
         }))
         .manage(AppState::default())
+        .manage(rtp_monitor::RtpMonitorState::default())
         .invoke_handler(tauri::generate_handler![
             list_network_interfaces,
             start_discovery,
             get_discovery_status,
             get_streams,
             clear_streams,
-            import_sdp
+            import_sdp,
+            rtp_monitor::start_rtp_monitor,
+            rtp_monitor::stop_rtp_monitor,
+            rtp_monitor::get_rtp_stats
         ])
         .run(tauri::generate_context!())
         .expect("Errore durante l'avvio di BB AES67 Matrix");

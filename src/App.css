@@ -308,3 +308,59 @@ button.danger {
   border-color: #713841;
   background: #351820;
 }
+
+.rtp-table {
+  overflow: hidden;
+  border: 1px solid #1b3552;
+  border-radius: 8px;
+}
+
+.rtp-row {
+  display: grid;
+  grid-template-columns: 1.5fr .7fr .7fr .6fr .7fr .7fr .8fr .7fr;
+  align-items: center;
+  min-height: 58px;
+  padding: 0 12px;
+  border-bottom: 1px solid #162d47;
+  font-size: 12px;
+}
+
+.rtp-row:last-child {
+  border-bottom: 0;
+}
+
+.rtp-head {
+  min-height: 38px;
+  color: #708aa4;
+  background: #091522;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.rtp-row small {
+  display: block;
+  margin-top: 4px;
+  color: #70879e;
+  font-family: Consolas, monospace;
+}
+
+.rtp-online {
+  color: #38d996;
+  font-weight: 800;
+}
+
+.rtp-offline {
+  color: #ed6c74;
+  font-weight: 800;
+}
+
+button.compact {
+  padding: 7px 10px;
+  font-size: 11px;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: .45;
+}
